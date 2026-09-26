@@ -102,24 +102,28 @@ Atualiza o status da ocorrência conforme as regras de negócio do desafio.
 
 ## Frontend: primeira etapa da tela de ocorrências
 
-A primeira etapa da tela foi implementada no Angular com o objetivo de listar ocorrências, aplicar filtro visual por status e mostrar estados de carregamento, erro e lista vazia.
+A primeira etapa da tela foi implementada no Angular com o objetivo de listar ocorrências, aplicar filtro visual por status, mostrar estados de carregamento, erro e lista vazia, além de permitir a mudança de status adequada para os cenários de `open` e `acknowledged`.
 
 ### Estrutura adotada
 
 - `frontend/src/app/occurrences.model.ts` - tipos do domínio para consumo da API;
-- `frontend/src/app/occurrences.service.ts` - serviço responsável por `GET /occurrences`;
-- `frontend/src/app/app.ts` - componente principal que monta a visão da central de ocorrências;
-- `frontend/src/app/app.html` - apresentação da lista e filtros visuais;
-- `frontend/src/app/app.css` - layout responsivo da tela.
+- `frontend/src/app/occurrences.service.ts` - serviço responsável por `GET /occurrences` e `PATCH /occurrences/:id/status`;
+- `frontend/src/app/app.ts` - componente principal que monta a visão da central de ocorrências e trata ações de status;
+- `frontend/src/app/app.html` - apresentação da lista, filtros visuais e ações de reconhecimento/resolução;
+- `frontend/src/app/app.css` - layout responsivo da tela e estados de ação.
 
 ### Comportamento
 
 - o frontend usa `HttpClient` configurado via `provideHttpClient()`;
-- a chamada da API é feita para `http://localhost:3000/occurrences`;
+- a chamada da API é feita para `http://localhost:3000/occurrences` e para `PATCH /occurrences/:id/status`;
 - o filtro visual envia o valor selecionado como query param `status` para a API;
 - a prioridade exibida é a retornada pela API, sem recálculo no frontend;
 - ocorrências agrupadas mostram `count` quando maior que 1;
-- a tela exibe `loading`, `error` e `empty` de forma clara.
+- a tela exibe `loading`, `error` e `empty` de forma clara;
+- ocorrências com status `open` mostram o botão `Reconhecer`;
+- ocorrências com status `acknowledged` mostram o botão `Resolver` e um formulário inline para nota de resolução;
+- ações em andamento são bloqueadas para evitar cliques duplicados;
+- o frontend reconsulta a API após sucesso para refletir o estado real do backend.
 
 ## Decisões técnicas
 

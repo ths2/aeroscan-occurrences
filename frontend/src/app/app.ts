@@ -1,7 +1,7 @@
 import { CommonModule, DatePipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { finalize } from 'rxjs';
-import { Occurrence, OccurrenceStatusFilter } from './occurrences.model';
+import { Occurrence, OccurrenceStatus, OccurrenceStatusFilter } from './occurrences.model';
 import { OccurrencesService } from './occurrences.service';
 
 @Component({
@@ -27,6 +27,10 @@ export class App implements OnInit {
   readonly occurrences = signal<Occurrence[]>([]);
   readonly isLoading = signal(false);
   readonly errorMessage = signal<string | null>(null);
+  readonly actionErrors = signal<Record<string, string>>({});
+  readonly pendingStatusUpdate = signal<Record<string, boolean>>({});
+  readonly resolutionDrafts = signal<Record<string, string>>({});
+  readonly resolutionFormOpen = signal<string | null>(null);
   readonly filteredOccurrences = computed(() => this.occurrences());
 
   ngOnInit(): void {
@@ -53,6 +57,82 @@ export class App implements OnInit {
   onFilterChange(status: OccurrenceStatusFilter): void {
     this.selectedStatus.set(status);
     this.loadOccurrences();
+  }
+
+  canRecognize(status: OccurrenceStatus): boolean {
+    return status === 'open';
+  }
+
+  canResolve(status: OccurrenceStatus): boolean {
+    return status === 'acknowledged';
+  }
+
+  isActionInProgress(id: string): boolean {
+    return this.pendingStatusUpdate()[id] ?? false;
+  }
+
+  isResolutionFormOpen(id: string): boolean {
+    return this.resolutionFormOpen() === id;
+  }
+
+  openResolutionForm(id: string): void {
+    this.resolutionFormOpen.set(id);
+    this.actionErrors.update((current) => ({ ...current, [id]: '' }));
+  }
+
+  updateResolutionDraft(id: string, value: string): void {
+    this.resolutionDrafts.update((current) => ({ ...current, [id]: value }));
+
+    if (this.actionErrors()[id]) {
+      this.actionErrors.update((current) => ({ ...current, [id]: '' }));
+    }
+  }
+
+  submitResolution(id: string): void {
+    const note = (this.resolutionDrafts()[id] ?? '').trim();
+
+    if (note.length === 0) {
+      this.actionErrors.update((current) => ({
+        ...current,
+        [id]: 'A nota de resolução é obrigatória e não pode conter somente espaços.',
+      }));
+      return;
+    }
+
+    this.updateStatus(id, 'resolved', note);
+  }
+
+  updateStatus(id: string, nextStatus: OccurrenceStatus, note?: string): void {
+    if (this.pendingStatusUpdate()[id]) {
+      return;
+    }
+
+    this.pendingStatusUpdate.update((current) => ({ ...current, [id]: true }));
+    this.actionErrors.update((current) => ({ ...current, [id]: '' }));
+
+    this.occurrencesService
+      .updateOccurrenceStatus(id, nextStatus, note)
+      .pipe(
+        finalize(() => {
+          this.pendingStatusUpdate.update((current) => {
+            const next = { ...current };
+            delete next[id];
+            return next;
+          });
+        }),
+      )
+      .subscribe({
+        next: () => {
+          this.resolutionFormOpen.set(null);
+          this.loadOccurrences();
+        },
+        error: () => {
+          this.actionErrors.update((current) => ({
+            ...current,
+            [id]: 'Não foi possível atualizar o status da ocorrência.',
+          }));
+        },
+      });
   }
 
   formatDate(value: string): string {

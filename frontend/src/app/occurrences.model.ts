@@ -19,3 +19,8 @@ export interface Occurrence {
   count: number;
   note?: string;
 }
+
+export interface UpdateOccurrenceStatusRequest {
+  status: OccurrenceStatus;
+  note?: string;
+}

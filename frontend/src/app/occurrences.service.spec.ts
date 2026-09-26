@@ -37,4 +37,22 @@ describe('OccurrencesService', () => {
     expect(req.request.params.get('siteId')).toBe('site-1');
     req.flush([]);
   });
+
+  it('should patch the occurrence status when acknowledging', () => {
+    service.updateOccurrenceStatus('occ-1', 'acknowledged').subscribe();
+
+    const req = httpMock.expectOne('http://localhost:3000/occurrences/occ-1/status');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ status: 'acknowledged' });
+    req.flush({ _id: 'occ-1', status: 'acknowledged' });
+  });
+
+  it('should patch the occurrence status with the note when resolving', () => {
+    service.updateOccurrenceStatus('occ-1', 'resolved', '  Avaria corrigida  ').subscribe();
+
+    const req = httpMock.expectOne('http://localhost:3000/occurrences/occ-1/status');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ status: 'resolved', note: 'Avaria corrigida' });
+    req.flush({ _id: 'occ-1', status: 'resolved' });
+  });
 });

@@ -86,6 +86,62 @@
               <span class="meta grouped">Agrupado</span>
             }
           </footer>
+
+          <div class="status-actions">
+            @if (canRecognize(occurrence.status)) {
+              <button
+                type="button"
+                class="action-button acknowledge"
+                [disabled]="isActionInProgress(occurrence._id)"
+                (click)="updateStatus(occurrence._id, 'acknowledged')"
+              >
+                {{ isActionInProgress(occurrence._id) ? 'Processando...' : 'Reconhecer' }}
+              </button>
+            }
+
+            @if (canResolve(occurrence.status)) {
+              <button
+                type="button"
+                class="action-button resolve"
+                [disabled]="isActionInProgress(occurrence._id)"
+                (click)="openResolutionForm(occurrence._id)"
+              >
+                {{ isActionInProgress(occurrence._id) ? 'Processando...' : 'Resolver' }}
+              </button>
+            }
+          </div>
+
+          @if (actionErrors()[occurrence._id]) {
+            <p class="action-error general">{{ actionErrors()[occurrence._id] }}</p>
+          }
+
+          @if (isResolutionFormOpen(occurrence._id)) {
+            <div class="resolution-form">
+              <label class="resolution-label" for="note-{{ occurrence._id }}">Nota de resolução</label>
+              <textarea
+                id="note-{{ occurrence._id }}"
+                rows="3"
+                [value]="resolutionDrafts()[occurrence._id] ?? ''"
+                (input)="updateResolutionDraft(occurrence._id, $any($event.target).value)"
+                placeholder="Descreva a resolução da ocorrência..."
+              ></textarea>
+
+              @if (actionErrors()[occurrence._id]) {
+                <p class="action-error">{{ actionErrors()[occurrence._id] }}</p>
+              }
+
+              <div class="resolution-controls">
+                <button
+                  type="button"
+                  class="action-button resolve"
+                  [disabled]="isActionInProgress(occurrence._id)"
+                  (click)="submitResolution(occurrence._id)"
+                >
+                  Confirmar resolução
+                </button>
+              </div>
+            </div>
+          }
         </article>
       }
     </section>

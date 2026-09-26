@@ -8,7 +8,7 @@ Mini central de ocorrências para gerenciamento de alertas de drones em múltipl
 - TypeScript
 - NestJS
 - MongoDB / Mongoose
-- Angular
+- Angular 22
 - Docker
 
 ## Estrutura do projeto
@@ -16,26 +16,54 @@ Mini central de ocorrências para gerenciamento de alertas de drones em múltipl
 - `backend/` - API NestJS
 - `frontend/` - aplicação Angular
 - `frontend-dist/` - build estático do frontend
-- `docker-compose.yml` - MongoDB local
+- `docker-compose.yml` - MongoDB
 
 ## Como executar
 
-### Backend
+### Banco de dados
 
 1. Suba o MongoDB local com Docker Compose:
    ```bash
    docker compose up -d mongodb
    ```
-2. Configure a variável de ambiente `MONGODB_URI` no arquivo `.env` do backend, por exemplo:
+
+### Backend
+
+1. Configure a variável de ambiente `MONGODB_URI` no arquivo `.env` do backend, por exemplo:
    ```env
    MONGODB_URI=mongodb://localhost:27017/aeroscan
    ```
-3. Inicie a API:
+2. Inicie a API:
    ```bash
    cd backend
    npm install
    npm run start:dev
    ```
+
+### Frontend
+
+1. Em outro terminal, instale as dependências do frontend:
+   ```bash
+   cd frontend
+   npm install
+   ```
+2. Inicie a aplicação Angular:
+   ```bash
+   npm start
+   ```
+
+A aplicação consumirá a API exposta em `http://localhost:3000` pelo backend.
+
+> Observação: o scaffold Angular atual não inclui alvo de lint configurado (`ng lint` não está disponível neste projeto). A validação executada foi por testes e build do Angular.
+
+## CORS e desenvolvimento local
+
+Foi necessária uma configuração mínima de CORS no backend para permitir que o Angular em `http://localhost:4200` consuma a API em `http://localhost:3000` durante o desenvolvimento local.
+
+A configuração foi mantida simples e restrita ao escopo do desafio:
+- origem permitida em desenvolvimento;
+- métodos `GET`, `POST`, `PATCH`, `OPTIONS`;
+- cabeçalhos básicos do cliente.
 
 ## API implementada
 
@@ -58,7 +86,7 @@ Lista ocorrências com filtros opcionais de `status` e `siteId`.
 
 - sem filtros, retorna todas as ocorrências;
 - quando presentes, os filtros são combinados;
-- a prioridade é calculada em memória como `severity * weight(type)`;
+- a prioridade é calculada no backend e entregue ao frontend como `priority`;
 - a ordenação é por prioridade decrescente e, em empate, por `detectedAt` decrescente;
 - `status` inválido dispara erro HTTP 400.
 
@@ -72,6 +100,27 @@ Atualiza o status da ocorrência conforme as regras de negócio do desafio.
 - ocorrência inexistente dispara HTTP 404;
 - `status` inválido no payload dispara HTTP 400.
 
+## Frontend: primeira etapa da tela de ocorrências
+
+A primeira etapa da tela foi implementada no Angular com o objetivo de listar ocorrências, aplicar filtro visual por status e mostrar estados de carregamento, erro e lista vazia.
+
+### Estrutura adotada
+
+- `frontend/src/app/occurrences.model.ts` - tipos do domínio para consumo da API;
+- `frontend/src/app/occurrences.service.ts` - serviço responsável por `GET /occurrences`;
+- `frontend/src/app/app.ts` - componente principal que monta a visão da central de ocorrências;
+- `frontend/src/app/app.html` - apresentação da lista e filtros visuais;
+- `frontend/src/app/app.css` - layout responsivo da tela.
+
+### Comportamento
+
+- o frontend usa `HttpClient` configurado via `provideHttpClient()`;
+- a chamada da API é feita para `http://localhost:3000/occurrences`;
+- o filtro visual envia o valor selecionado como query param `status` para a API;
+- a prioridade exibida é a retornada pela API, sem recálculo no frontend;
+- ocorrências agrupadas mostram `count` quando maior que 1;
+- a tela exibe `loading`, `error` e `empty` de forma clara.
+
 ## Decisões técnicas
 
 ### Fundação do projeto
@@ -82,9 +131,21 @@ A solução foi mantida propositalmente simples, sem adicionar infraestrutura qu
 
 ## Premissas
 
-- Ao agrupar um alerta, a ocorrência existente tem o campo `detectedAt` atualizado para o instante do alerta mais recente.
-- A validação de entrada do payload do endpoint `POST /occurrences` é feita por DTO e `ValidationPipe` do NestJS.
-- A implementação atual cobre `POST /occurrences`, `GET /occurrences` e `PATCH /occurrences/:id/status`.
+- A implementação atual cobre `POST /occurrences`, `GET /occurrences` e `PATCH /occurrences/:id/status` no backend.
+- O frontend da etapa atual é focado na leitura e exibição da lista de ocorrências.
+- As ações de mudança de status e criação de ocorrência continuam fora do escopo desta etapa.
+
+## Testes
+
+### Backend
+
+- testes de regras de negócio em `backend/src/occurrences/occurrences.service.spec.ts`;
+- testes de controller em `backend/src/occurrences/occurrences.controller.spec.ts`.
+
+### Frontend
+
+- testes de integração de serviço em `frontend/src/app/occurrences.service.spec.ts`;
+- teste do componente principal em `frontend/src/app/app.spec.ts`.
 
 ## Como usei IA
 
@@ -100,19 +161,13 @@ A IA foi utilizada como apoio durante análise, arquitetura, implementação inc
 As tarefas foram divididas em pequenas etapas. Para cada etapa:
 
 1. o requisito foi analisado;
-2. o agente recebeu um escopo limitado;
+2. o escopo foi limitado;
 3. a implementação foi revisada;
 4. testes, lint e build foram executados;
 5. somente então a alteração foi aceita.
-
-### Exemplo de prompt
-
-> Será adicionado um prompt real utilizado durante o desenvolvimento.
 
 ### Correções de sugestões da IA
 
 Durante o desenvolvimento, sugestões da IA foram revisadas antes de serem incorporadas.
 
 Um exemplo foi a definição dos índices do MongoDB. A IA inicialmente removeu `type` de um índice por considerá-lo uma otimização especulativa. A decisão foi revisada porque `type` participa explicitamente da regra de agrupamento por `siteId + type`.
-
-Outros exemplos serão registrados conforme o desenvolvimento avançar.

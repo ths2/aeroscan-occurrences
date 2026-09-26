@@ -1,7 +1,17 @@
-import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { CreateOccurrenceDto } from './create-occurrence.dto.js';
 import { Occurrence, OccurrenceStatus } from './occurrence.schema.js';
 import { OccurrencesService } from './occurrences.service.js';
+
+class UpdateOccurrenceStatusDto {
+  @IsEnum(OccurrenceStatus)
+  status: OccurrenceStatus;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
 
 @Controller('occurrences')
 export class OccurrencesController {
@@ -22,5 +32,17 @@ export class OccurrencesController {
       status: status as OccurrenceStatus | undefined,
       siteId,
     });
+  }
+
+  @Patch(':id/status')
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() updateOccurrenceStatusDto: UpdateOccurrenceStatusDto,
+  ) {
+    return this.occurrencesService.updateOccurrenceStatus(
+      id,
+      updateOccurrenceStatusDto.status,
+      updateOccurrenceStatusDto.note,
+    );
   }
 }

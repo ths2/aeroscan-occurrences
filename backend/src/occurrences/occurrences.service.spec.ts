@@ -1,3 +1,4 @@
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OccurrenceStatus, OccurrenceType } from './occurrence.schema.js';
 import { OccurrencesService } from './occurrences.service.js';
@@ -16,6 +17,7 @@ describe('OccurrencesService', () => {
     findOne: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn>;
   };
 
   let service: OccurrencesService;
@@ -31,6 +33,7 @@ describe('OccurrencesService', () => {
       findOne: vi.fn(),
       find: vi.fn(),
       create: vi.fn(),
+      findById: vi.fn(),
     };
 
     service = new OccurrencesService(occurrenceModel as never);
@@ -519,5 +522,139 @@ describe('OccurrencesService', () => {
 
     expect(result[0]._id).toBe('newer');
     expect(result[1]._id).toBe('older');
+  });
+
+  it('updates an open occurrence to acknowledged', async () => {
+    const occurrence = {
+      _id: 'occ-1',
+      siteId: 'site-1',
+      droneId: 'drone-1',
+      type: OccurrenceType.INTRUSION,
+      severity: 3,
+      detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+      status: OccurrenceStatus.OPEN,
+      count: 1,
+      note: '',
+      save: vi.fn().mockResolvedValue({}),
+    };
+
+    occurrenceModel.findById.mockResolvedValue(occurrence);
+
+    const result = await service.updateOccurrenceStatus('occ-1', OccurrenceStatus.ACKNOWLEDGED);
+
+    expect(result.status).toBe(OccurrenceStatus.ACKNOWLEDGED);
+    expect(occurrence.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates an acknowledged occurrence to resolved when a note is provided', async () => {
+    const occurrence = {
+      _id: 'occ-2',
+      siteId: 'site-1',
+      droneId: 'drone-1',
+      type: OccurrenceType.LOW_BATTERY,
+      severity: 2,
+      detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+      status: OccurrenceStatus.ACKNOWLEDGED,
+      count: 1,
+      note: 'working on it',
+      save: vi.fn().mockResolvedValue({}),
+    };
+
+    occurrenceModel.findById.mockResolvedValue(occurrence);
+
+    const result = await service.updateOccurrenceStatus('occ-2', OccurrenceStatus.RESOLVED, 'Fixed by operator');
+
+    expect(result.status).toBe(OccurrenceStatus.RESOLVED);
+    expect(result.note).toBe('Fixed by operator');
+    expect(occurrence.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects open to resolved with 409 and does not modify the occurrence', async () => {
+    const occurrence = {
+      _id: 'occ-3',
+      status: OccurrenceStatus.OPEN,
+      note: '',
+      save: vi.fn(),
+    };
+
+    occurrenceModel.findById.mockResolvedValue(occurrence);
+
+    await expect(service.updateOccurrenceStatus('occ-3', OccurrenceStatus.RESOLVED)).rejects.toThrow(ConflictException);
+    expect(occurrence.status).toBe(OccurrenceStatus.OPEN);
+    expect(occurrence.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects acknowledged to open with 409 and does not modify the occurrence', async () => {
+    const occurrence = {
+      _id: 'occ-4',
+      status: OccurrenceStatus.ACKNOWLEDGED,
+      note: 'existing note',
+      save: vi.fn(),
+    };
+
+    occurrenceModel.findById.mockResolvedValue(occurrence);
+
+    await expect(service.updateOccurrenceStatus('occ-4', OccurrenceStatus.OPEN)).rejects.toThrow(ConflictException);
+    expect(occurrence.status).toBe(OccurrenceStatus.ACKNOWLEDGED);
+    expect(occurrence.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects any transition starting from resolved', async () => {
+    const occurrence = {
+      _id: 'occ-5',
+      status: OccurrenceStatus.RESOLVED,
+      note: 'closed',
+      save: vi.fn(),
+    };
+
+    occurrenceModel.findById.mockResolvedValue(occurrence);
+
+    await expect(service.updateOccurrenceStatus('occ-5', OccurrenceStatus.ACKNOWLEDGED)).rejects.toThrow(ConflictException);
+    await expect(service.updateOccurrenceStatus('occ-5', OccurrenceStatus.RESOLVED)).rejects.toThrow(ConflictException);
+    expect(occurrence.save).not.toHaveBeenCalled();
+  });
+
+  it('requires a non-empty note when resolving an acknowledged occurrence', async () => {
+    const occurrence = {
+      _id: 'occ-6',
+      status: OccurrenceStatus.ACKNOWLEDGED,
+      note: '',
+      save: vi.fn(),
+    };
+
+    occurrenceModel.findById.mockResolvedValue(occurrence);
+
+    await expect(service.updateOccurrenceStatus('occ-6', OccurrenceStatus.RESOLVED)).rejects.toThrow(BadRequestException);
+    await expect(service.updateOccurrenceStatus('occ-6', OccurrenceStatus.RESOLVED, '   ')).rejects.toThrow(BadRequestException);
+    expect(occurrence.save).not.toHaveBeenCalled();
+  });
+
+  it('persists a valid resolution note', async () => {
+    const occurrence = {
+      _id: 'occ-7',
+      status: OccurrenceStatus.ACKNOWLEDGED,
+      note: 'old note',
+      save: vi.fn().mockResolvedValue({}),
+    };
+
+    occurrenceModel.findById.mockResolvedValue(occurrence);
+
+    const result = await service.updateOccurrenceStatus('occ-7', OccurrenceStatus.RESOLVED, '  Fixed by operator  ');
+
+    expect(result.status).toBe(OccurrenceStatus.RESOLVED);
+    expect(result.note).toBe('Fixed by operator');
+    expect(occurrence.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws a not found exception when the occurrence does not exist', async () => {
+    occurrenceModel.findById.mockResolvedValue(null);
+
+    await expect(service.updateOccurrenceStatus('missing', OccurrenceStatus.ACKNOWLEDGED)).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws a bad request for an invalid occurrence id', async () => {
+    occurrenceModel.findById.mockRejectedValue(Object.assign(new Error('Cast to ObjectId failed'), { name: 'CastError' }));
+
+    await expect(service.updateOccurrenceStatus('not-a-valid-id', OccurrenceStatus.ACKNOWLEDGED)).rejects.toThrow(BadRequestException);
   });
 });

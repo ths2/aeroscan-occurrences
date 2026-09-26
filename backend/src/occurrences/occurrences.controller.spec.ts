@@ -8,11 +8,15 @@ import { OccurrencesService } from './occurrences.service.js';
 
 describe('OccurrencesController', () => {
   let app: INestApplication;
-  let occurrencesService: { createOccurrence: ReturnType<typeof vi.fn> };
+  let occurrencesService: {
+    createOccurrence: ReturnType<typeof vi.fn>;
+    updateOccurrenceStatus: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     occurrencesService = {
       createOccurrence: vi.fn(),
+      updateOccurrenceStatus: vi.fn(),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -80,5 +84,27 @@ describe('OccurrencesController', () => {
       .expect(201);
 
     expect(occurrencesService.createOccurrence).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a valid status transition and calls the service', async () => {
+    occurrencesService.updateOccurrenceStatus.mockResolvedValue({
+      _id: 'occ-1',
+      status: 'acknowledged',
+      note: '',
+    });
+
+    await request(app.getHttpServer())
+      .patch('/occurrences/occ-1/status')
+      .send({ status: 'acknowledged' })
+      .expect(200);
+
+    expect(occurrencesService.updateOccurrenceStatus).toHaveBeenCalledWith('occ-1', 'acknowledged', undefined);
+  });
+
+  it('returns 400 for invalid status values in PATCH /occurrences/:id/status', async () => {
+    await request(app.getHttpServer())
+      .patch('/occurrences/occ-1/status')
+      .send({ status: 'blocked' })
+      .expect(400);
   });
 });

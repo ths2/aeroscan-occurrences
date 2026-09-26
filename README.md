@@ -62,6 +62,16 @@ Lista ocorrências com filtros opcionais de `status` e `siteId`.
 - a ordenação é por prioridade decrescente e, em empate, por `detectedAt` decrescente;
 - `status` inválido dispara erro HTTP 400.
 
+### PATCH /occurrences/:id/status
+
+Atualiza o status da ocorrência conforme as regras de negócio do desafio.
+
+- transições permitidas: `open -> acknowledged` e `acknowledged -> resolved`;
+- qualquer outra transição é rejeitada com HTTP 409;
+- `resolved` exige `note` não vazio;
+- ocorrência inexistente dispara HTTP 404;
+- `status` inválido no payload dispara HTTP 400.
+
 ## Decisões técnicas
 
 ### Fundação do projeto
@@ -74,7 +84,7 @@ A solução foi mantida propositalmente simples, sem adicionar infraestrutura qu
 
 - Ao agrupar um alerta, a ocorrência existente tem o campo `detectedAt` atualizado para o instante do alerta mais recente.
 - A validação de entrada do payload do endpoint `POST /occurrences` é feita por DTO e `ValidationPipe` do NestJS.
-- A implementação atual cobre `POST /occurrences` e `GET /occurrences`; `PATCH /occurrences/:id/status` ainda não faz parte do escopo desta etapa.
+- A implementação atual cobre `POST /occurrences`, `GET /occurrences` e `PATCH /occurrences/:id/status`.
 
 ## Como usei IA
 

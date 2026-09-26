@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateOccurrenceDto } from './create-occurrence.dto.js';
@@ -86,5 +86,56 @@ export class OccurrencesService {
 
         return new Date(right.detectedAt).getTime() - new Date(left.detectedAt).getTime();
       });
+  }
+
+  async updateOccurrenceStatus(
+    id: string,
+    nextStatus: OccurrenceStatus,
+    note?: string,
+  ): Promise<OccurrenceDocument> {
+    let occurrence: OccurrenceDocument | null;
+
+    try {
+      occurrence = await this.occurrenceModel.findById(id);
+    } catch (error) {
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'CastError') {
+        throw new BadRequestException('Invalid occurrence id.');
+      }
+
+      throw error;
+    }
+
+    if (!occurrence) {
+      throw new NotFoundException(`Occurrence with id ${id} not found.`);
+    }
+
+    const allowedTransitions: Partial<Record<OccurrenceStatus, OccurrenceStatus>> = {
+      [OccurrenceStatus.OPEN]: OccurrenceStatus.ACKNOWLEDGED,
+      [OccurrenceStatus.ACKNOWLEDGED]: OccurrenceStatus.RESOLVED,
+    };
+
+    const currentStatus = occurrence.status;
+    const isValidTransition = allowedTransitions[currentStatus] === nextStatus;
+
+    if (!isValidTransition) {
+      throw new ConflictException(
+        `Invalid status transition from ${currentStatus} to ${nextStatus}. Allowed transitions: open -> acknowledged, acknowledged -> resolved.`,
+      );
+    }
+
+    if (nextStatus === OccurrenceStatus.RESOLVED) {
+      const trimmedNote = note?.trim() ?? '';
+
+      if (trimmedNote.length === 0) {
+        throw new BadRequestException('A non-empty note is required to resolve an occurrence.');
+      }
+
+      occurrence.note = trimmedNote;
+    }
+
+    occurrence.status = nextStatus;
+    await occurrence.save();
+
+    return occurrence;
   }
 }

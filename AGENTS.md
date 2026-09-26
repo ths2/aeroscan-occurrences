@@ -176,3 +176,46 @@ For every task:
 8. report what changed and any assumptions
 
 Do not implement future phases unless explicitly requested.
+
+## README maintenance
+
+The root `README.md` is part of the deliverable and must evolve together
+with the implementation.
+
+After completing each task, review the root `README.md` and update it only
+when the task introduces information that belongs there.
+
+Update when applicable:
+
+- setup or execution instructions
+- environment variables
+- architecture or project structure
+- implemented API behavior
+- technical decisions
+- explicit assumptions
+- testing instructions
+- AI usage examples
+- relevant corrections made after AI review
+
+Rules:
+
+- Never invent decisions, assumptions, results or AI interactions.
+- Document only what actually happened in the project.
+- Do not rewrite unrelated README sections.
+- Keep documentation concise and aligned with the current implementation.
+- Do not document planned behavior as if it were already implemented.
+- Preserve the distinction between challenge requirements and project assumptions.
+- If a task does not require a README change, explicitly report:
+  "README: no update required."
+- README changes must be included in the final task summary.
+
+## AI usage documentation
+
+When an AI-generated implementation or technical decision is reviewed and
+meaningfully corrected by the developer, consider whether it is a useful
+real example for the `Como usei IA` section of the root README.
+
+Only record meaningful examples.
+
+Do not record trivial formatting changes or manufacture examples just to
+populate the section.

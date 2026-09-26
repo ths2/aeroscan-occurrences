@@ -50,6 +50,13 @@ describe('OccurrencesController', () => {
     expect(occurrencesService.createOccurrence).not.toHaveBeenCalled();
   });
 
+  it('returns 400 for invalid status in GET /occurrences', async () => {
+    await request(app.getHttpServer())
+      .get('/occurrences')
+      .query({ status: 'invalid-status' })
+      .expect(400);
+  });
+
   it('passes valid payload to the service', async () => {
     occurrencesService.createOccurrence.mockResolvedValue({
       siteId: 'site-1',

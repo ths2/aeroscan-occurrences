@@ -2,7 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateOccurrenceDto } from './create-occurrence.dto.js';
-import { Occurrence, OccurrenceDocument, OccurrenceStatus } from './occurrence.schema.js';
+import { Occurrence, OccurrenceDocument, OccurrenceStatus, OccurrenceType } from './occurrence.schema.js';
+
+const TYPE_WEIGHT: Record<OccurrenceType, number> = {
+  [OccurrenceType.INTRUSION]: 3,
+  [OccurrenceType.PERIMETER_BREACH]: 2,
+  [OccurrenceType.LOW_BATTERY]: 1,
+  [OccurrenceType.SIGNAL_LOSS]: 1,
+};
+
+type OccurrenceListItem = Occurrence & {
+  priority: number;
+  _id?: unknown;
+};
 
 @Injectable()
 export class OccurrencesService {
@@ -43,5 +55,36 @@ export class OccurrencesService {
     await existing.save();
 
     return existing;
+  }
+
+  async findOccurrences(filters: { status?: OccurrenceStatus; siteId?: string } = {}): Promise<OccurrenceListItem[]> {
+    const query: { status?: OccurrenceStatus; siteId?: string } = {};
+
+    if (filters.status !== undefined) {
+      query.status = filters.status;
+    }
+
+    if (filters.siteId !== undefined) {
+      query.siteId = filters.siteId;
+    }
+
+    const occurrences = await this.occurrenceModel.find(query).exec();
+
+    return occurrences
+      .map((occurrence) => {
+        const plain = occurrence.toObject() as Occurrence & { _id?: unknown };
+
+        return {
+          ...plain,
+          priority: plain.severity * TYPE_WEIGHT[plain.type],
+        } satisfies OccurrenceListItem;
+      })
+      .sort((left, right) => {
+        if (right.priority !== left.priority) {
+          return right.priority - left.priority;
+        }
+
+        return new Date(right.detectedAt).getTime() - new Date(left.detectedAt).getTime();
+      });
   }
 }

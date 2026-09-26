@@ -14,6 +14,7 @@ const buildDto = (overrides: Partial<Record<string, unknown>> = {}) => ({
 describe('OccurrencesService', () => {
   let occurrenceModel: {
     findOne: ReturnType<typeof vi.fn>;
+    find: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
   };
 
@@ -28,6 +29,7 @@ describe('OccurrencesService', () => {
   beforeEach(() => {
     occurrenceModel = {
       findOne: vi.fn(),
+      find: vi.fn(),
       create: vi.fn(),
     };
 
@@ -233,5 +235,289 @@ describe('OccurrencesService', () => {
     const result = await service.createOccurrence(buildDto({ detectedAt: '2026-01-01T12:00:00.000Z' }));
 
     expect(result.detectedAt).toEqual(new Date('2026-01-01T12:00:00.000Z'));
+  });
+
+  it('returns all occurrences without filters', async () => {
+    const docs = [
+      {
+        _id: '1',
+        siteId: 'site-a',
+        type: OccurrenceType.INTRUSION,
+        severity: 2,
+        detectedAt: new Date('2026-01-01T11:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+        toObject: () => ({
+          _id: '1',
+          siteId: 'site-a',
+          type: OccurrenceType.INTRUSION,
+          severity: 2,
+          detectedAt: new Date('2026-01-01T11:00:00.000Z'),
+          status: OccurrenceStatus.OPEN,
+        }),
+      },
+      {
+        _id: '2',
+        siteId: 'site-b',
+        type: OccurrenceType.LOW_BATTERY,
+        severity: 5,
+        detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+        status: OccurrenceStatus.RESOLVED,
+        toObject: () => ({
+          _id: '2',
+          siteId: 'site-b',
+          type: OccurrenceType.LOW_BATTERY,
+          severity: 5,
+          detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+          status: OccurrenceStatus.RESOLVED,
+        }),
+      },
+    ];
+
+    occurrenceModel.find.mockReturnValue({ exec: vi.fn().mockResolvedValue(docs) });
+
+    const result = await service.findOccurrences();
+
+    expect(result).toHaveLength(2);
+    expect(result[0].priority).toBe(6);
+    expect(result[1].priority).toBe(5);
+    expect(occurrenceModel.find).toHaveBeenCalledWith({});
+  });
+
+  it('filters by status', async () => {
+    const docs = [{
+      _id: '1',
+      siteId: 'site-a',
+      type: OccurrenceType.INTRUSION,
+      severity: 2,
+      detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+      status: OccurrenceStatus.OPEN,
+      toObject: () => ({
+        _id: '1',
+        siteId: 'site-a',
+        type: OccurrenceType.INTRUSION,
+        severity: 2,
+        detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+      }),
+    }];
+
+    occurrenceModel.find.mockReturnValue({ exec: vi.fn().mockResolvedValue(docs) });
+
+    await service.findOccurrences({ status: OccurrenceStatus.OPEN });
+
+    expect(occurrenceModel.find).toHaveBeenCalledWith({ status: OccurrenceStatus.OPEN });
+  });
+
+  it('filters by siteId', async () => {
+    const docs = [{
+      _id: '1',
+      siteId: 'site-1',
+      type: OccurrenceType.PERIMETER_BREACH,
+      severity: 3,
+      detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+      status: OccurrenceStatus.OPEN,
+      toObject: () => ({
+        _id: '1',
+        siteId: 'site-1',
+        type: OccurrenceType.PERIMETER_BREACH,
+        severity: 3,
+        detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+      }),
+    }];
+
+    occurrenceModel.find.mockReturnValue({ exec: vi.fn().mockResolvedValue(docs) });
+
+    await service.findOccurrences({ siteId: 'site-1' });
+
+    expect(occurrenceModel.find).toHaveBeenCalledWith({ siteId: 'site-1' });
+  });
+
+  it('combines filters by status and siteId', async () => {
+    const docs = [{
+      _id: '1',
+      siteId: 'site-1',
+      type: OccurrenceType.INTRUSION,
+      severity: 2,
+      detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+      status: OccurrenceStatus.OPEN,
+      toObject: () => ({
+        _id: '1',
+        siteId: 'site-1',
+        type: OccurrenceType.INTRUSION,
+        severity: 2,
+        detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+      }),
+    }];
+
+    occurrenceModel.find.mockReturnValue({ exec: vi.fn().mockResolvedValue(docs) });
+
+    await service.findOccurrences({ status: OccurrenceStatus.OPEN, siteId: 'site-1' });
+
+    expect(occurrenceModel.find).toHaveBeenCalledWith({ status: OccurrenceStatus.OPEN, siteId: 'site-1' });
+  });
+
+  it('calculates the four type weights', async () => {
+    const docs = [
+      {
+        _id: '1',
+        siteId: 'site-a',
+        type: OccurrenceType.INTRUSION,
+        severity: 2,
+        detectedAt: new Date('2026-01-01T11:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+        toObject: () => ({
+          _id: '1',
+          siteId: 'site-a',
+          type: OccurrenceType.INTRUSION,
+          severity: 2,
+          detectedAt: new Date('2026-01-01T11:00:00.000Z'),
+          status: OccurrenceStatus.OPEN,
+        }),
+      },
+      {
+        _id: '2',
+        siteId: 'site-a',
+        type: OccurrenceType.PERIMETER_BREACH,
+        severity: 2,
+        detectedAt: new Date('2026-01-01T10:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+        toObject: () => ({
+          _id: '2',
+          siteId: 'site-a',
+          type: OccurrenceType.PERIMETER_BREACH,
+          severity: 2,
+          detectedAt: new Date('2026-01-01T10:00:00.000Z'),
+          status: OccurrenceStatus.OPEN,
+        }),
+      },
+      {
+        _id: '3',
+        siteId: 'site-a',
+        type: OccurrenceType.LOW_BATTERY,
+        severity: 2,
+        detectedAt: new Date('2026-01-01T09:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+        toObject: () => ({
+          _id: '3',
+          siteId: 'site-a',
+          type: OccurrenceType.LOW_BATTERY,
+          severity: 2,
+          detectedAt: new Date('2026-01-01T09:00:00.000Z'),
+          status: OccurrenceStatus.OPEN,
+        }),
+      },
+      {
+        _id: '4',
+        siteId: 'site-a',
+        type: OccurrenceType.SIGNAL_LOSS,
+        severity: 2,
+        detectedAt: new Date('2026-01-01T08:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+        toObject: () => ({
+          _id: '4',
+          siteId: 'site-a',
+          type: OccurrenceType.SIGNAL_LOSS,
+          severity: 2,
+          detectedAt: new Date('2026-01-01T08:00:00.000Z'),
+          status: OccurrenceStatus.OPEN,
+        }),
+      },
+    ];
+
+    occurrenceModel.find.mockReturnValue({ exec: vi.fn().mockResolvedValue(docs) });
+
+    const result = await service.findOccurrences();
+
+    expect(result.map((item) => item.priority)).toEqual([6, 4, 2, 2]);
+  });
+
+  it('orders by priority descending', async () => {
+    const docs = [
+      {
+        _id: '1',
+        siteId: 'site-a',
+        type: OccurrenceType.LOW_BATTERY,
+        severity: 1,
+        detectedAt: new Date('2026-01-01T09:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+        toObject: () => ({
+          _id: '1',
+          siteId: 'site-a',
+          type: OccurrenceType.LOW_BATTERY,
+          severity: 1,
+          detectedAt: new Date('2026-01-01T09:00:00.000Z'),
+          status: OccurrenceStatus.OPEN,
+        }),
+      },
+      {
+        _id: '2',
+        siteId: 'site-a',
+        type: OccurrenceType.INTRUSION,
+        severity: 3,
+        detectedAt: new Date('2026-01-01T10:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+        toObject: () => ({
+          _id: '2',
+          siteId: 'site-a',
+          type: OccurrenceType.INTRUSION,
+          severity: 3,
+          detectedAt: new Date('2026-01-01T10:00:00.000Z'),
+          status: OccurrenceStatus.OPEN,
+        }),
+      },
+    ];
+
+    occurrenceModel.find.mockReturnValue({ exec: vi.fn().mockResolvedValue(docs) });
+
+    const result = await service.findOccurrences();
+
+    expect(result[0]._id).toBe('2');
+    expect(result[1]._id).toBe('1');
+  });
+
+  it('breaks priority ties by detectedAt descending', async () => {
+    const docs = [
+      {
+        _id: 'older',
+        siteId: 'site-a',
+        type: OccurrenceType.LOW_BATTERY,
+        severity: 2,
+        detectedAt: new Date('2026-01-01T09:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+        toObject: () => ({
+          _id: 'older',
+          siteId: 'site-a',
+          type: OccurrenceType.LOW_BATTERY,
+          severity: 2,
+          detectedAt: new Date('2026-01-01T09:00:00.000Z'),
+          status: OccurrenceStatus.OPEN,
+        }),
+      },
+      {
+        _id: 'newer',
+        siteId: 'site-a',
+        type: OccurrenceType.LOW_BATTERY,
+        severity: 2,
+        detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+        status: OccurrenceStatus.OPEN,
+        toObject: () => ({
+          _id: 'newer',
+          siteId: 'site-a',
+          type: OccurrenceType.LOW_BATTERY,
+          severity: 2,
+          detectedAt: new Date('2026-01-01T12:00:00.000Z'),
+          status: OccurrenceStatus.OPEN,
+        }),
+      },
+    ];
+
+    occurrenceModel.find.mockReturnValue({ exec: vi.fn().mockResolvedValue(docs) });
+
+    const result = await service.findOccurrences();
+
+    expect(result[0]._id).toBe('newer');
+    expect(result[1]._id).toBe('older');
   });
 });

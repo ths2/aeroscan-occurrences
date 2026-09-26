@@ -52,6 +52,16 @@ Regra de agrupamento:
 - `count` é incrementado;
 - `detectedAt` da ocorrência agrupada é atualizado para o alerta mais recente.
 
+### GET /occurrences
+
+Lista ocorrências com filtros opcionais de `status` e `siteId`.
+
+- sem filtros, retorna todas as ocorrências;
+- quando presentes, os filtros são combinados;
+- a prioridade é calculada em memória como `severity * weight(type)`;
+- a ordenação é por prioridade decrescente e, em empate, por `detectedAt` decrescente;
+- `status` inválido dispara erro HTTP 400.
+
 ## Decisões técnicas
 
 ### Fundação do projeto
@@ -64,7 +74,7 @@ A solução foi mantida propositalmente simples, sem adicionar infraestrutura qu
 
 - Ao agrupar um alerta, a ocorrência existente tem o campo `detectedAt` atualizado para o instante do alerta mais recente.
 - A validação de entrada do payload do endpoint `POST /occurrences` é feita por DTO e `ValidationPipe` do NestJS.
-- A implementação atual cobre somente o endpoint `POST /occurrences`; `GET` e `PATCH` ainda não fazem parte do escopo desta etapa.
+- A implementação atual cobre `POST /occurrences` e `GET /occurrences`; `PATCH /occurrences/:id/status` ainda não faz parte do escopo desta etapa.
 
 ## Como usei IA
 

@@ -11,12 +11,46 @@ Mini central de ocorrências para gerenciamento de alertas de drones em múltipl
 - Angular 22
 - Docker
 
+## Requisitos de ambiente
+
+- Node.js esperado: versão compatível com o projeto, conforme descrito em `.nvmrc`.
+- O repositório inclui `.nvmrc` com a versão esperada do Node:
+  ```bash
+  cat .nvmrc
+  ```
+  Resultado esperado:
+  ```bash
+  22.23.3
+  ```
+- Para usar a versão correta com nvm:
+  ```bash
+  nvm install
+  nvm use
+  ```
+
 ## Estrutura do projeto
 
 - `backend/` - API NestJS
 - `frontend/` - aplicação Angular
-- `frontend-dist/` - build estático do frontend
+- `frontend-dist/` - artefato estático final do frontend para entrega
 - `docker-compose.yml` - MongoDB
+- `.nvmrc` - versão recomendada do Node
+
+## Como instalar dependências
+
+### Backend
+
+```bash
+cd backend
+npm install
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+```
 
 ## Como executar
 
@@ -24,35 +58,63 @@ Mini central de ocorrências para gerenciamento de alertas de drones em múltipl
 
 1. Suba o MongoDB local com Docker Compose:
    ```bash
-   docker compose up -d mongodb
+   docker compose up -d
    ```
 
-### Backend
+### Backend local
 
-1. Configure a variável de ambiente `MONGODB_URI` no arquivo `.env` do backend, por exemplo:
+1. Crie o arquivo `.env` dentro de `backend/` com a variável obrigatória:
    ```env
    MONGODB_URI=mongodb://localhost:27017/aeroscan
    ```
 2. Inicie a API:
    ```bash
    cd backend
-   npm install
    npm run start:dev
    ```
 
-### Frontend
+A API ficará disponível em `http://localhost:3000`.
 
-1. Em outro terminal, instale as dependências do frontend:
+### Backend via Docker
+
+1. A partir da raiz do projeto, construa a imagem do backend:
+   ```bash
+   docker build -t aeroscan-backend ./backend
+   ```
+2. Execute a aplicação em modo produção com a variável de ambiente do MongoDB:
+   ```bash
+   docker run --rm -p 3000:3000 --env MONGODB_URI=mongodb://host.docker.internal:27017/aeroscan aeroscan-backend
+   ```
+
+> A imagem usa Node 22.23.3 e compila o NestJS em uma etapa de build. A configuração do MongoDB permanece externa à imagem e deve ser informada por variável de ambiente em tempo de execução.
+
+### Frontend em desenvolvimento
+
+1. Em outro terminal, execute:
    ```bash
    cd frontend
-   npm install
-   ```
-2. Inicie a aplicação Angular:
-   ```bash
    npm start
    ```
+2. O Angular será servido em `http://localhost:4200`.
 
-A aplicação consumirá a API exposta em `http://localhost:3000` pelo backend.
+A aplicação consome a API do backend em `http://localhost:3000`.
+
+### Build do frontend para entrega
+
+O build de produção do Angular é gerado com:
+
+```bash
+cd frontend
+npm run build
+```
+
+A saída padrão do Angular fica em:
+
+```bash
+frontend/dist/frontend/
+```
+
+Esse diretório contém o bundle compilado e o navegador do app. Para a entrega final, os arquivos estáticos são copiados para `frontend-dist/` e esse diretório passa a funcionar como artefato estático da entrega.
 
 > Observação: o scaffold Angular atual não inclui alvo de lint configurado (`ng lint` não está disponível neste projeto). A validação executada foi por testes e build do Angular.
 

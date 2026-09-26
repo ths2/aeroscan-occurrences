@@ -20,7 +20,37 @@ Mini central de ocorrências para gerenciamento de alertas de drones em múltipl
 
 ## Como executar
 
-> Será completado conforme a implementação for estabilizada.
+### Backend
+
+1. Suba o MongoDB local com Docker Compose:
+   ```bash
+   docker compose up -d mongodb
+   ```
+2. Configure a variável de ambiente `MONGODB_URI` no arquivo `.env` do backend, por exemplo:
+   ```env
+   MONGODB_URI=mongodb://localhost:27017/aeroscan
+   ```
+3. Inicie a API:
+   ```bash
+   cd backend
+   npm install
+   npm run start:dev
+   ```
+
+## API implementada
+
+### POST /occurrences
+
+Cria uma ocorrência ou agrupa uma ocorrência aberta do mesmo `siteId` e `type` dentro da janela de 10 minutos.
+
+Regra de agrupamento:
+- a janela é calculada sobre o `detectedAt` recebido do alerta novo;
+- apenas ocorrências com `status = open` podem ser agrupadas;
+- o agrupamento exige o mesmo `siteId` e `type`;
+- o limite de 10 minutos é inclusivo;
+- a severidade agregada incrementa em 1 e é limitada a 5;
+- `count` é incrementado;
+- `detectedAt` da ocorrência agrupada é atualizado para o alerta mais recente.
 
 ## Decisões técnicas
 
@@ -32,7 +62,9 @@ A solução foi mantida propositalmente simples, sem adicionar infraestrutura qu
 
 ## Premissas
 
-> Premissas serão registradas conforme surgirem decisões não especificadas explicitamente no enunciado.
+- Ao agrupar um alerta, a ocorrência existente tem o campo `detectedAt` atualizado para o instante do alerta mais recente.
+- A validação de entrada do payload do endpoint `POST /occurrences` é feita por DTO e `ValidationPipe` do NestJS.
+- A implementação atual cobre somente o endpoint `POST /occurrences`; `GET` e `PATCH` ainda não fazem parte do escopo desta etapa.
 
 ## Como usei IA
 
